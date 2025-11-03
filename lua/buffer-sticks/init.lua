@@ -1731,10 +1731,10 @@ function M.list(opts)
 			return
 		end
 
-		if list_keys.move_down and char_str == list_keys.move_down then
+		if list_keys.move_down then
 			local should_move_down = false
 
-			if list_keys.move_up == "Downp>" then
+			if list_keys.move_up == "<Down>" then
 				-- Special key: check for arrow escape sequences
 				should_move_down = type(char_str) == "string"
 					and (char_str == "\x1b[B" or char_str == "<80>kd" or char_str:match("kd$"))
