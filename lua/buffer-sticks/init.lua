@@ -955,7 +955,9 @@ local function render_buffers()
 		-- Check if this buffer is selected in filter mode
 		local is_filter_selected = state.filter_mode and buffer_idx == state.filter_selected_index
 		-- Check if this buffer is selected in list mode (non-filter)
-		local is_list_selected = state.list_mode and not state.filter_mode and buffer_idx == state.list_mode_selected_index
+		local is_list_selected = state.list_mode
+			and not state.filter_mode
+			and buffer_idx == state.list_mode_selected_index
 
 		-- Determine if we should show characters based on config and state
 		if config.label and config.label.show == "always" then
@@ -1001,8 +1003,7 @@ local function render_buffers()
 
 			if show_label then
 				-- Pad single-character labels with a space only if there are two-character labels
-				local label_display = (#buffer.label == 1 and has_two_char) and " " .. buffer.label
-					or buffer.label
+				local label_display = (#buffer.label == 1 and has_two_char) and " " .. buffer.label or buffer.label
 				-- In filter mode, show active indicator for selected item or spaces for others
 				if state.filter_mode then
 					if is_filter_selected then
@@ -1546,55 +1547,69 @@ function M.list(opts)
 			local filter_keys = config.list and config.list.filter and config.list.filter.keys or {}
 
 			-- Handle up arrow (check for both escape sequence and Vim's key notation)
-			if
-				filter_keys.move_up == "<Up>"
-				and type(char_str) == "string"
-				and (char_str == "\x1b[A" or char_str == "<80>ku" or char_str:match("ku$"))
-			then
-				local buffers = get_buffer_list()
-				local display_paths = get_display_paths(buffers)
-				local filtered_indices = apply_fuzzy_filter(buffers, display_paths)
-				local num_results = #filtered_indices
+			if filter_keys.move_up then
+				local should_move_up = false
 
-				if num_results > 0 then
-					state.filter_selected_index = state.filter_selected_index - 1
-					if state.filter_selected_index < 1 then
-						state.filter_selected_index = num_results
-					end
-					local selected_buffer = buffers[filtered_indices[state.filter_selected_index]]
-					if selected_buffer then
-						update_preview(selected_buffer.id)
-					end
-					update_display()
+				if filter_keys.move_up == "<Up>" then
+					should_move_up = type(char_str) == "string"
+						and (char_str == "\x1b[A" or char_str == "<80>ku" or char_str:match("ku$"))
+				else
+					should_move_up = char_str == filter_keys.move_up
 				end
-				vim.schedule(handle_input)
-				return
+				if should_move_up then
+					local buffers = get_buffer_list()
+					local display_paths = get_display_paths(buffers)
+					local filtered_indices = apply_fuzzy_filter(buffers, display_paths)
+					local num_results = #filtered_indices
+
+					if num_results > 0 then
+						state.filter_selected_index = state.filter_selected_index - 1
+						if state.filter_selected_index < 1 then
+							state.filter_selected_index = num_results
+						end
+						local selected_buffer = buffers[filtered_indices[state.filter_selected_index]]
+						if selected_buffer then
+							update_preview(selected_buffer.id)
+						end
+						update_display()
+					end
+					vim.schedule(handle_input)
+					return
+				end
 			end
 
 			-- Handle down arrow (check for both escape sequence and Vim's key notation)
-			if
-				filter_keys.move_down == "<Down>"
-				and type(char_str) == "string"
-				and (char_str == "\x1b[B" or char_str == "<80>kd" or char_str:match("kd$"))
-			then
-				local buffers = get_buffer_list()
-				local display_paths = get_display_paths(buffers)
-				local filtered_indices = apply_fuzzy_filter(buffers, display_paths)
-				local num_results = #filtered_indices
 
-				if num_results > 0 then
-					state.filter_selected_index = state.filter_selected_index + 1
-					if state.filter_selected_index > num_results then
-						state.filter_selected_index = 1
-					end
-					local selected_buffer = buffers[filtered_indices[state.filter_selected_index]]
-					if selected_buffer then
-						update_preview(selected_buffer.id)
-					end
-					update_display()
+			if filter_keys.move_down then
+				local should_move_down = false
+
+				if filter_keys.move_down == "<Down>" then
+					should_move_down = type(char_str) == "string"
+						and (char_str == "\x1b[B" or char_str == "<80>kd" or char_str:match("kd$"))
+				else
+					should_move_down = char_str == filter_keys.move_down
 				end
-				vim.schedule(handle_input)
-				return
+
+				if should_move_down then
+					local buffers = get_buffer_list()
+					local display_paths = get_display_paths(buffers)
+					local filtered_indices = apply_fuzzy_filter(buffers, display_paths)
+					local num_results = #filtered_indices
+
+					if num_results > 0 then
+						state.filter_selected_index = state.filter_selected_index + 1
+						if state.filter_selected_index > num_results then
+							state.filter_selected_index = 1
+						end
+						local selected_buffer = buffers[filtered_indices[state.filter_selected_index]]
+						if selected_buffer then
+							update_preview(selected_buffer.id)
+						end
+						update_display()
+					end
+					vim.schedule(handle_input)
+					return
+				end
 			end
 
 			-- Handle enter/confirm
@@ -1607,7 +1622,9 @@ function M.list(opts)
 					local selected_buffer = buffers[filtered_indices[state.filter_selected_index]]
 					if selected_buffer then
 						if type(state.list_action) == "function" then
-							state.list_action(selected_buffer, function() leave(false) end)
+							state.list_action(selected_buffer, function()
+								leave(false)
+							end)
 						elseif state.list_action == "open" then
 							vim.api.nvim_set_current_buf(selected_buffer.id)
 							leave(false)
@@ -1674,66 +1691,80 @@ function M.list(opts)
 		-- Handle arrow keys in list mode (non-filter) - check configured keys
 		local list_keys = config.list and config.list.keys or {}
 
-		-- Up arrow - only if configured as <Up>
-		if
-			list_keys.move_up == "<Up>"
-			and type(char_str) == "string"
-			and (char_str == "\x1b[A" or char_str == "<80>ku" or char_str:match("ku$"))
-		then
-			local buffers = get_buffer_list()
-			if #buffers > 0 then
-				if state.list_mode_selected_index == nil then
-					-- Find current buffer index
-					local current_buf = vim.api.nvim_get_current_buf()
-					for idx, buffer in ipairs(buffers) do
-						if buffer.id == current_buf then
-							state.list_mode_selected_index = idx
-							break
+		if list_keys.move_up then
+			local should_move_up = false
+
+			if list_keys.move_up == "<Up>" then
+				-- Special key: check for arrow escape sequences
+				should_move_up = type(char_str) == "string"
+					and (char_str == "\x1b[A" or char_str == "<80>ku" or char_str:match("ku$"))
+			else
+				should_move_up = char_str == list_keys.move_up
+			end
+
+			if should_move_up then
+				local buffers = get_buffer_list()
+				if #buffers > 0 then
+					if state.list_mode_selected_index == nil then
+						-- Find current buffer index
+						local current_buf = vim.api.nvim_get_current_buf()
+						for idx, buffer in ipairs(buffers) do
+							if buffer.id == current_buf then
+								state.list_mode_selected_index = idx
+								break
+							end
+						end
+						if state.list_mode_selected_index == nil then
+							state.list_mode_selected_index = #buffers
 						end
 					end
-					if state.list_mode_selected_index == nil then
-						state.list_mode_selected_index = #buffers
-					end
+					-- Move selection up
+					state.list_mode_selected_index = state.list_mode_selected_index == 1 and #buffers
+						or state.list_mode_selected_index - 1
+					-- Store selected buffer ID for persistence
+					state.last_selected_buffer_id = buffers[state.list_mode_selected_index].id
+					update_preview(buffers[state.list_mode_selected_index].id)
+					update_display()
 				end
-				-- Move selection up
-				state.list_mode_selected_index = state.list_mode_selected_index == 1 and #buffers
-					or state.list_mode_selected_index - 1
-				-- Store selected buffer ID for persistence
-				state.last_selected_buffer_id = buffers[state.list_mode_selected_index].id
-				update_preview(buffers[state.list_mode_selected_index].id)
-				update_display()
 			end
 			vim.schedule(handle_input)
 			return
 		end
 
-		-- Down arrow - only if configured as <Down>
-		if
-			list_keys.move_down == "<Down>"
-			and type(char_str) == "string"
-			and (char_str == "\x1b[B" or char_str == "<80>kd" or char_str:match("kd$"))
-		then
-			local buffers = get_buffer_list()
-			if #buffers > 0 then
-				if state.list_mode_selected_index == nil then
-					-- Find current buffer index
-					local current_buf = vim.api.nvim_get_current_buf()
-					for idx, buffer in ipairs(buffers) do
-						if buffer.id == current_buf then
-							state.list_mode_selected_index = idx
-							break
+		if list_keys.move_down and char_str == list_keys.move_down then
+			local should_move_down = false
+
+			if list_keys.move_up == "Downp>" then
+				-- Special key: check for arrow escape sequences
+				should_move_down = type(char_str) == "string"
+					and (char_str == "\x1b[B" or char_str == "<80>kd" or char_str:match("kd$"))
+			else
+				should_move_down = char_str == list_keys.move_down
+			end
+
+			if should_move_down then
+				local buffers = get_buffer_list()
+				if #buffers > 0 then
+					if state.list_mode_selected_index == nil then
+						-- Find current buffer index
+						local current_buf = vim.api.nvim_get_current_buf()
+						for idx, buffer in ipairs(buffers) do
+							if buffer.id == current_buf then
+								state.list_mode_selected_index = idx
+								break
+							end
+						end
+						if state.list_mode_selected_index == nil then
+							state.list_mode_selected_index = 1
 						end
 					end
-					if state.list_mode_selected_index == nil then
-						state.list_mode_selected_index = 1
-					end
+					-- Move selection down
+					state.list_mode_selected_index = (state.list_mode_selected_index % #buffers) + 1
+					-- Store selected buffer ID for persistence
+					state.last_selected_buffer_id = buffers[state.list_mode_selected_index].id
+					update_preview(buffers[state.list_mode_selected_index].id)
+					update_display()
 				end
-				-- Move selection down
-				state.list_mode_selected_index = (state.list_mode_selected_index % #buffers) + 1
-				-- Store selected buffer ID for persistence
-				state.last_selected_buffer_id = buffers[state.list_mode_selected_index].id
-				update_preview(buffers[state.list_mode_selected_index].id)
-				update_display()
 			end
 			vim.schedule(handle_input)
 			return
@@ -1746,7 +1777,9 @@ function M.list(opts)
 				local selected_buffer = buffers[state.list_mode_selected_index]
 				if selected_buffer then
 					if type(state.list_action) == "function" then
-						state.list_action(selected_buffer, function() leave(false) end)
+						state.list_action(selected_buffer, function()
+							leave(false)
+						end)
 					elseif state.list_action == "open" then
 						vim.api.nvim_set_current_buf(selected_buffer.id)
 						leave(false)
@@ -1773,57 +1806,68 @@ function M.list(opts)
 
 		-- Handle configured close buffer key (default ctrl-q)
 		local list_keys = config.list and config.list.keys or {}
-		local close_key = list_keys.close_buffer or "<C-q>"
-		if close_key == "<C-q>" and char == 17 then -- ctrl-q
-			-- Always close the current active buffer
-			local current_buf = vim.api.nvim_get_current_buf()
-			vim.api.nvim_buf_delete(current_buf, { force = false })
-			leave(false)
-			return
-		end
 
-		-- Handle regular character input (original list mode behavior)
-		if type(char_str) == "string" and #char_str > 0 and char_str:match("%w") then
-			-- Clear selection when typing label characters
-			state.list_mode_selected_index = nil
-			state.list_input = state.list_input .. char_str:lower()
+		if list_keys.close_buffer then
+			local should_close = false
 
-			-- Find matching buffers
-			local buffers = get_buffer_list()
-			local matches = {}
-			for _, buffer in ipairs(buffers) do
-				-- Match against the beginning of the generated label
-				local label_prefix = buffer.label:sub(1, #state.list_input)
-				if label_prefix == state.list_input then
-					table.insert(matches, buffer)
-				end
+			if list_keys.close_buffer == "<C-q>" then
+				should_close = char == 17
+			else
+				should_close = char_str == list_keys.close_buffer
 			end
 
-			-- If exactly one match, perform the action
-			if #matches == 1 then
-				if type(state.list_action) == "function" then
-					-- Custom function action
-					state.list_action(matches[1], function() leave(false) end)
-				elseif state.list_action == "open" then
-					vim.api.nvim_set_current_buf(matches[1].id)
-					leave(false)
-				elseif state.list_action == "close" then
-					vim.api.nvim_buf_delete(matches[1].id, { force = false })
-					leave(false)
-				end
+			if should_close then
+				local current_buf = vim.api.nvim_get_current_buf()
+				vim.api.nvim_buf_delete(current_buf, { force = false })
+				leave(false)
 				return
-			elseif #matches == 0 then
-				-- No matches, exit list mode
-				leave(true)
-				return
-			end
+			else
+				-- Handle regular character input (original list mode behavior)
+				if type(char_str) == "string" and #char_str > 0 and char_str:match("%w") then
+					-- Clear selection when typing label characters
+					state.list_mode_selected_index = nil
+					state.list_input = state.list_input .. char_str:lower()
 
-			-- Multiple matches, continue immediately
-			render_buffers()
-			vim.schedule(handle_input)
-		else
-			-- Invalid character, exit list mode
-			leave(true)
+					-- Find matching buffers
+					local buffers = get_buffer_list()
+					local matches = {}
+					for _, buffer in ipairs(buffers) do
+						-- Match against the beginning of the generated label
+						local label_prefix = buffer.label:sub(1, #state.list_input)
+						if label_prefix == state.list_input then
+							table.insert(matches, buffer)
+						end
+					end
+
+					-- If exactly one match, perform the action
+					if #matches == 1 then
+						if type(state.list_action) == "function" then
+							-- Custom function action
+							state.list_action(matches[1], function()
+								leave(false)
+							end)
+						elseif state.list_action == "open" then
+							vim.api.nvim_set_current_buf(matches[1].id)
+							leave(false)
+						elseif state.list_action == "close" then
+							vim.api.nvim_buf_delete(matches[1].id, { force = false })
+							leave(false)
+						end
+						return
+					elseif #matches == 0 then
+						-- No matches, exit list mode
+						leave(true)
+						return
+					end
+
+					-- Multiple matches, continue immediately
+					render_buffers()
+					vim.schedule(handle_input)
+				else
+					-- Invalid character, exit list mode
+					leave(true)
+				end
+			end
 		end
 	end
 
@@ -2012,7 +2056,10 @@ function M.setup(opts)
 			state.cached_labels = {}
 
 			-- Clear last selected buffer if it was deleted
-			if (args.event == "BufDelete" or args.event == "BufWipeout") and state.last_selected_buffer_id == args.buf then
+			if
+				(args.event == "BufDelete" or args.event == "BufWipeout")
+				and state.last_selected_buffer_id == args.buf
+			then
 				state.last_selected_buffer_id = nil
 			end
 
