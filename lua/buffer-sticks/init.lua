@@ -1726,9 +1726,9 @@ function M.list(opts)
 					update_preview(buffers[state.list_mode_selected_index].id)
 					update_display()
 				end
+				vim.schedule(handle_input)
+				return
 			end
-			vim.schedule(handle_input)
-			return
 		end
 
 		if list_keys.move_down then
@@ -1765,9 +1765,9 @@ function M.list(opts)
 					update_preview(buffers[state.list_mode_selected_index].id)
 					update_display()
 				end
+				vim.schedule(handle_input)
+				return
 			end
-			vim.schedule(handle_input)
-			return
 		end
 
 		-- Enter key to confirm selection - only when selection is active
