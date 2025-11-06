@@ -1819,7 +1819,7 @@ function M.list(opts)
 			if should_close then
 				local current_buf = vim.api.nvim_get_current_buf()
 				vim.api.nvim_buf_delete(current_buf, { force = false })
-				leave(false)
+				-- leave(false)
 				return
 			else
 				-- Handle regular character input (original list mode behavior)
